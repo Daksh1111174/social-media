@@ -1,82 +1,130 @@
 import streamlit as st
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 
-# Reddit
-import praw
+from sklearn.feature_extraction.text import TfidfVectorizer
+from wordcloud import WordCloud
 
 # Twitter scraping
 import snscrape.modules.twitter as sntwitter
 
-# ---- Reddit Auth Config ----
+# Reddit API
+import praw
+
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Social Media Big Data Analyzer", layout="wide")
+
+st.title("📊 Social Media Big Data Analyzer")
+st.write("TF-IDF based Trending Topic Analyzer with WordCloud")
+
+# ---------------- REDDIT AUTH ----------------
 reddit = praw.Reddit(
-    client_id="YOUR_ID",
-    client_secret="YOUR_SECRET",
-    user_agent="trendAnalyzer"
+    client_id="YOUR_CLIENT_ID",
+    client_secret="YOUR_CLIENT_SECRET",
+    user_agent="bigdata-analyzer"
 )
 
-# ---- TFIDF & Wordcloud Function ----
-def compute_tfidf_wordcloud(texts):
-
-    vec = TfidfVectorizer(stop_words='english', max_features=100)
-    X = vec.fit_transform(texts)
-    df = pd.DataFrame(X.toarray(), columns=vec.get_feature_names_out())
+# ---------------- FUNCTIONS ----------------
+def tfidf_analysis(texts):
+    vectorizer = TfidfVectorizer(
+        stop_words="english",
+        max_features=100
+    )
+    X = vectorizer.fit_transform(texts)
+    df = pd.DataFrame(
+        X.toarray(),
+        columns=vectorizer.get_feature_names_out()
+    )
     freq = df.sum().sort_values(ascending=False)
+    return freq
 
-    # Wordcloud
-    wc = WordCloud(width=800, height=400).generate_from_frequencies(freq.to_dict())
-    return freq, wc
+def generate_wordcloud(freq):
+    wc = WordCloud(
+        width=900,
+        height=400,
+        background_color="white"
+    ).generate_from_frequencies(freq.to_dict())
+    return wc
 
-# ---- UI ----
-st.title("Social Media Big Data Analyzer")
+# ---------------- UI TABS ----------------
+tab1, tab2, tab3 = st.tabs(["🐦 Twitter", "📘 Facebook", "👽 Reddit"])
 
-tab1, tab2, tab3 = st.tabs(["Twitter", "Facebook", "Reddit"])
-
-# ---------------- TWITTER ----------------
+# ======================================================
+# TWITTER TAB
+# ======================================================
 with tab1:
-    keyword = st.text_input("Enter Trending Topic for Twitter", key="tw")
-    if st.button("Fetch Twitter Data"):
+    st.subheader("Twitter Trending Analyzer")
+    keyword = st.text_input("Enter Topic / Hashtag", "#AI")
+
+    if st.button("Analyze Twitter"):
         tweets = []
-        for i, tweet in enumerate(sntwitter.TwitterSearchScraper(keyword).get_items()):
+        for i, tweet in enumerate(
+            sntwitter.TwitterSearchScraper(keyword).get_items()
+        ):
             if i >= 500:
                 break
             tweets.append(tweet.content)
 
-        df = pd.DataFrame({"text": tweets})
-        st.write("Twitter Data", df)
+        if len(tweets) == 0:
+            st.warning("No tweets found")
+        else:
+            df = pd.DataFrame({"Text": tweets})
+            st.dataframe(df.head(20))
 
-        freq, wc = compute_tfidf_wordcloud(tweets)
-        st.write("TF-IDF Frequencies", freq)
+            freq = tfidf_analysis(tweets)
 
-        st.pyplot(plt.figure(figsize=(10,5)))
-        plt.imshow(wc, interpolation='bilinear')
-        plt.axis('off')
-        st.pyplot(plt)
+            st.subheader("TF-IDF Frequency Table")
+            st.dataframe(freq.reset_index().rename(
+                columns={"index": "Word", 0: "TF-IDF Score"}
+            ))
 
-# ---------------- FACEBOOK ----------------
+            wc = generate_wordcloud(freq)
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.imshow(wc)
+            ax.axis("off")
+            st.pyplot(fig)
+
+# ======================================================
+# FACEBOOK TAB (LIMITED)
+# ======================================================
 with tab2:
-    fb_keyword = st.text_input("Enter Facebook Search Keyword", key="fb")
-    if st.button("Fetch Facebook Data"):
-        st.write("Note: Facebook API access is required.")
-        st.write("Use Graph API with page/search endpoints.")
+    st.subheader("Facebook Analyzer (Public Data Limitation)")
+    st.info("Facebook does NOT provide free public trending APIs.")
 
-# ---------------- REDDIT ----------------
+    st.write("""
+    ✔ You can integrate **Facebook Graph API**
+    ✔ Requires App Review & Access Token
+    ✔ Public scraping is restricted
+    """)
+
+# ======================================================
+# REDDIT TAB
+# ======================================================
 with tab3:
-    reddit_keyword = st.text_input("Enter Reddit Topic or Subreddit", key="rd")
-    if st.button("Fetch Reddit Data"):
+    st.subheader("Reddit Trending Analyzer")
+    keyword = st.text_input("Enter Topic / Keyword", "cryptocurrency")
+
+    if st.button("Analyze Reddit"):
         posts = []
-        for submission in reddit.subreddit("all").search(reddit_keyword, limit=500):
+        for submission in reddit.subreddit("all").search(keyword, limit=500):
             posts.append(submission.title + " " + submission.selftext)
 
-        df = pd.DataFrame({"text": posts})
-        st.write("Reddit Data", df)
+        if len(posts) == 0:
+            st.warning("No posts found")
+        else:
+            df = pd.DataFrame({"Text": posts})
+            st.dataframe(df.head(20))
 
-        freq, wc = compute_tfidf_wordcloud(posts)
-        st.write("TF-IDF Frequencies", freq)
+            freq = tfidf_analysis(posts)
 
-        st.pyplot(plt.figure(figsize=(10,5)))
-        plt.imshow(wc, interpolation='bilinear')
-        plt.axis('off')
-        st.pyplot(plt)
+            st.subheader("TF-IDF Frequency Table")
+            st.dataframe(freq.reset_index().rename(
+                columns={"index": "Word", 0: "TF-IDF Score"}
+            ))
+
+            wc = generate_wordcloud(freq)
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.imshow(wc)
+            ax.axis("off")
+            st.pyplot(fig)
+
