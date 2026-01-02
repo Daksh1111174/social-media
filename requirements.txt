@@ -3,5 +3,5 @@ pandas
 scikit-learn
 wordcloud
 matplotlib
-twikit
+snscrape==0.7.0.20230622
 praw
